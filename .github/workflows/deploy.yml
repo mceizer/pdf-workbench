@@ -1,0 +1,51 @@
+# Bygger och deployar appen till GitHub Pages vid varje push till main.
+# Efter första körningen: gå till repo → Settings → Pages och välj
+# "GitHub Actions" som källa (Source). Sedan sköts allt automatiskt.
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # tillåter manuell körning från Actions-fliken
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci
+
+      # Sätt Vite-base till "/<repo-namn>/" så att asset-, worker- och
+      # WASM-sökvägar pekar rätt på GitHub Pages underkatalog.
+      - name: Build
+        env:
+          VITE_BASE: /${{ github.event.repository.name }}/
+        run: npm run build
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
